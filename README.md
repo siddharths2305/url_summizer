@@ -24,70 +24,28 @@ The UI renders the result with a smooth animated "typing" effect for a polished,
 
 ## 🖼️ How It Works
 
-```mermaid
-flowchart TD
-    A[User enters URL] --> B{Valid URL & API Key?}
-    B -- No --> C[Show error message]
-    B -- Yes --> D{Is it a YouTube link?}
+The app follows a simple, linear pipeline from input to summary:
 
-    D -- Yes --> E[Extract Video ID]
-    E --> F[Fetch transcript via<br/>YouTube Transcript API]
+1. **Input validation** — The user provides a Groq API key and a URL. The app checks that both fields are filled and that the URL is well-formed before proceeding.
+2. **Source detection** — The app checks whether the URL points to a YouTube video (`youtube.com` / `youtu.be`) or a regular web page.
+3. **Content extraction**:
+   - **YouTube URLs**: The video ID is extracted from the link, and the transcript is fetched using the YouTube Transcript API.
+   - **Web page URLs**: The page is loaded and parsed into plain text using `UnstructuredURLLoader`, with a custom browser User-Agent to avoid basic blocking.
+4. **Prompt construction** — Based on the selected summary size (Short, Medium, or Detailed), a tailored prompt is built instructing the model on bullet count and depth.
+5. **LLM summarization** — The prompt is passed through a LangChain chain (`PromptTemplate → ChatGroq → StrOutputParser`) using Groq's `llama-3.3-70b-versatile` model.
+6. **Formatting & display** — The raw model output is normalized into clean bullet points and revealed in the UI with a typewriter-style animation.
 
-    D -- No --> G[Load & parse page via<br/>UnstructuredURLLoader]
-
-    F --> H[Build prompt based on<br/>selected summary size]
-    G --> H
-
-    H --> I[LangChain pipeline:<br/>Prompt → ChatGroq LLaMA 3.3 70B → StrOutputParser]
-    I --> J[Format response into<br/>bullet points]
-    J --> K[Animated typing display<br/>in Streamlit UI]
-
-    style A fill:#4f46e5,color:#fff
-    style K fill:#22c55e,color:#fff
-    style I fill:#F55036,color:#fff
-```
-
----
-
-## 🏗️ Architecture
-
-```mermaid
-graph LR
-    subgraph Frontend["🖥️ Streamlit UI"]
-        A1[URL Input]
-        A2[Summary Size Selector]
-        A3[Groq API Key Input]
-    end
-
-    subgraph Extraction["📥 Content Extraction"]
-        B1[UnstructuredURLLoader<br/>Web Pages]
-        B2[YouTubeTranscriptApi<br/>YouTube Videos]
-    end
-
-    subgraph LLM["🤖 LangChain + Groq"]
-        C1[PromptTemplate]
-        C2[ChatGroq<br/>llama-3.3-70b-versatile]
-        C3[StrOutputParser]
-    end
-
-    subgraph Output["📄 Rendered Summary"]
-        D1[Bullet-point Formatter]
-        D2[Animated Display]
-    end
-
-    A1 --> B1
-    A1 --> B2
-    A2 --> C1
-    A3 --> C2
-    B1 --> C1
-    B2 --> C1
-    C1 --> C2 --> C3 --> D1 --> D2
-
-    style Frontend fill:#eef2ff,stroke:#4f46e5
-    style Extraction fill:#fef9c3,stroke:#ca8a04
-    style LLM fill:#fee2e2,stroke:#F55036
-    style Output fill:#dcfce7,stroke:#16a34a
-```
+| Stage | Component Used | Purpose |
+|---|---|---|
+| Input Validation | `validators.url()` | Confirms the URL is properly formatted before any processing begins |
+| Source Detection | URL parsing (`urlparse`) | Determines whether to use the YouTube path or the web-scraping path |
+| YouTube Extraction | `YouTubeTranscriptApi` | Fetches the video's transcript text directly, no audio/video download required |
+| Web Extraction | `UnstructuredURLLoader` | Loads and parses HTML content into clean text |
+| Prompt Building | `build_prompt()` | Generates a size-specific instruction prompt (3, 5, or 8–10 bullets) |
+| Summarization | `ChatGroq` (LLaMA 3.3 70B) | Generates the actual summary via Groq's inference API |
+| Output Parsing | `StrOutputParser` | Extracts plain text from the LLM's structured response |
+| Display Formatting | `format_summary_for_display()` | Converts raw text into consistent Markdown bullet points |
+| Animated Rendering | `display_summary_with_typing()` | Streams the summary into the UI character-by-character |
 
 ---
 
